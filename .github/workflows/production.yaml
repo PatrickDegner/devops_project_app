@@ -14,25 +14,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+          
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUBUSERNAME }}
           password: ${{ secrets.DOCKERHUBTOKEN }}
 
-      - name: Get Development SHA from Merge Commit
-        id: get_dev_sha
+      - name: Get latest development image tag
+        id: latest_dev_tag
         run: |
-          DEV_SHA=$(git log -1 --merges --pretty=format:"%P" | awk '{print $2}' | git rev-parse --short)
-          echo "dev_sha=$DEV_SHA" >> $GITHUB_OUTPUT
+          TAG=$(curl -s "https://hub.docker.com/v2/repositories/${{ secrets.DOCKERHUBUSERNAME }}/devops_app/tags?page_size=100" \
+          | jq -r '.results[] | select(.name | startswith("development-")) | .name' | sort -r | head -n 1)
+          echo "latest_dev_tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Pull development image
+      - name: Pull latest development image
         run: |
-          docker pull ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.get_dev_sha.outputs.dev_sha }}
+          docker pull ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ steps.latest_dev_tag.outputs.latest_dev_tag }}
 
       - name: Retag and push production image
         run: |
-          docker tag ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.get_dev_sha.outputs.dev_sha }} \
-                     ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:production-${{ steps.get_dev_sha.outputs.dev_sha }}
-          docker push ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:production-${{ steps.get_dev_sha.outputs.dev_sha }}
+          docker tag ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ steps.latest_dev_tag.outputs.latest_dev_tag }} \
+                     ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:production-${{ steps.latest_dev_tag.outputs.latest_dev_tag }}
+          docker push ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:production-${{ steps.latest_dev_tag.outputs.latest_dev_tag }}

@@ -5,11 +5,6 @@ on:
     branches:
       - development
       - 'release-**'
-      - main
-  pull_request:
-    branches:
-      - development
-      - main
 
 permissions:
   contents: write
@@ -17,27 +12,13 @@ permissions:
   pull-requests: write
 
 jobs:
-  build-and-test:
+  build-and-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.13'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Tests with pytest
-        run: |
-          pytest
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -52,12 +33,6 @@ jobs:
         id: short_sha
         run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Get Latest Git Tag
-        id: latest_tag
-        run: |
-          TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
-          echo "latest_tag=$TAG" >> $GITHUB_OUTPUT
-
       - name: Determine Image Tag
         id: image-tag
         run: |
@@ -65,57 +40,22 @@ jobs:
             echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           elif [[ ${{ github.ref }} == 'refs/heads/release-'* ]]; then
             VERSION=$(echo ${{ github.ref }} | cut -d '/' -f 3 | sed 's/release-//')
-            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${VERSION}" >> "$GITHUB_OUTPUT"
-          elif [[ ${{ github.ref }} == 'refs/heads/main' ]]; then
-            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:main-${{ steps.latest_tag.outputs.latest_tag }}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ github.ref_name }}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
+            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${VERSION}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v4
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.image-tag.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  trivy-scan:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Get Latest Git Tag
-        id: latest_tag
-        run: |
-          TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
-          echo "latest_tag=$TAG" >> $GITHUB_OUTPUT
-
-      - name: Extract short SHA
-        id: short_sha
-        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      - name: Determine Image Tag for Trivy
-        id: image-tag-trivy
-        run: |
-          if [[ ${{ github.ref }} == 'refs/heads/development' ]]; then
-            echo "image_ref=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
-          elif [[ ${{ github.ref }} == 'refs/heads/release-'* ]]; then
-            VERSION=$(echo ${{ github.ref }} | cut -d '/' -f 3 | sed 's/release-//')
-            echo "image_ref=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${VERSION}" >> "$GITHUB_OUTPUT"
-          elif [[ ${{ github.ref }} == 'refs/heads/main' ]]; then
-            echo "image_ref=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:main-${{ steps.latest_tag.outputs.latest_tag }}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "image_ref=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ github.ref_name }}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: ${{ steps.image-tag-trivy.outputs.image_ref }}
+          image-ref: ${{ steps.image-tag.outputs.tags }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           exit-code: '1'
@@ -125,6 +65,5 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: 'trivy-results.sarif'

@@ -65,7 +65,7 @@ jobs:
             echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           elif [[ ${{ github.ref }} == 'refs/heads/release-'* ]]; then
             VERSION=$(echo ${{ github.ref }} | cut -d '/' -f 3 | sed 's/release-//')
-            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${VERSION}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           else
             echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ github.ref_name }}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           fi

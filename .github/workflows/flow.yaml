@@ -63,11 +63,11 @@ jobs:
             echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.latest_tag.outputs.latest_tag }}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           elif [[ ${{ github.ref }} == 'refs/heads/release-'* ]]; then
             VERSION=$(echo ${{ github.ref }} | cut -d '/' -f 3 | sed 's/release-//')
-            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${VERSION},${{ secrets.DOCKERHUBUSERNAME }}/devops_app:latest" >> "$GITHUB_OUTPUT"
+            echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${VERSION},${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           else
             echo "tags=${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ github.ref_name }}-${{ steps.latest_tag.outputs.latest_tag }}-${{ steps.short_sha.outputs.sha }}" >> "$GITHUB_OUTPUT"
           fi
-          
+
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v4
         with:

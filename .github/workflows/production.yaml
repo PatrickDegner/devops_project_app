@@ -4,6 +4,9 @@ on:
   push:
     branches: [ "main" ]
 
+permissions:
+  contents: write
+
 jobs:
   retag-and-push-prod-image:
     runs-on: ubuntu-latest
@@ -16,23 +19,25 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUBUSERNAME }}
           password: ${{ secrets.DOCKERHUBTOKEN }}
-      - name: Extract short SHA of merge commit
-        id: short_sha
-        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Get Release Version
-        id: release_version
-        if: ${{ steps.release.outputs.release_created == 'true' }}
+      - name: Extract short SHA
+        id: short_sha
         run: |
-          echo "version=${{ steps.release.outputs.version }}" >> $GITHUB_OUTPUT
+          SHA=$(git rev-parse --short HEAD)
+          echo "short_sha=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Get Git Tag for Version
+        id: version_info
+        run: |
+          TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
+          echo "version=$TAG" >> $GITHUB_OUTPUT
 
       - name: Pull development image
-        if: ${{ steps.release.outputs.release_created == 'true' }}
         run: |
-          docker pull ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.short_sha.outputs.sha }}
+          docker pull ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.version_info.outputs.version }}-${{ steps.short_sha.outputs.short_sha }}
 
       - name: Retag and push production image
-        if: ${{ steps.release.outputs.release_created == 'true' }}
         run: |
-          docker tag ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.short_sha.outputs.sha }} ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ steps.release_version.outputs.version }}
-          docker push ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ steps.release_version.outputs.version }}
+          docker tag ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.version_info.outputs.version }}-${{ steps.short_sha.outputs.short_sha }} \
+                     ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ steps.version_info.outputs.version }}
+          docker push ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:${{ steps.version_info.outputs.version }}

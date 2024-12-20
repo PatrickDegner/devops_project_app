@@ -53,4 +53,4 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.version_info.outputs.latest_tag }}-${{ steps.version_info.outputs.short_sha }}
+            ${{ secrets.DOCKERHUBUSERNAME }}/devops_app:development-${{ steps.version_info.outputs.short_sha }}

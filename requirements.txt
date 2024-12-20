@@ -1,5 +1,5 @@
-fastapi==0.63.0
+fastapi
 uvicorn
 jinja2
-pytest
+pytest==2.2.2
 httpx==0.13.3
